@@ -14,6 +14,8 @@
 #define NOB_STRIP_PREFIX
 #include "nob.h"
 
+#define cstr_eq(a, b) (strcmp(a, b) == 0)
+
 const char *source_files[] = {
   "src/dwoc.c",
   "src/utils.h",
@@ -22,30 +24,62 @@ const char *source_files[] = {
 };
 size_t source_files_count = NOB_ARRAY_LEN(source_files);
 
+bool generate_etags(Cmd *cmd) {
+  cmd_append(cmd, "etags", "-o", "TAGS", "--lang=c");
+  cmd_append(cmd, "nob.h");
+  for (size_t i = 0; i < source_files_count; ++i) {
+    cmd_append(cmd, source_files[i]);
+  }
+  return cmd_run_sync_and_reset(cmd);
+}
+
+bool generate_etags_silent(Cmd *cmd) {
+  Nob_Log_Level base_min_level = nob_minimal_log_level;
+  nob_minimal_log_level = NOB_NO_LOGS;
+  bool result = generate_etags(cmd);
+  nob_minimal_log_level = base_min_level;
+  return result;
+}
+
+void usage(const char *program) {
+  printf("Usage: %s [FLAGS]\n", program);
+  printf("    -run      -----  Run example `dwoc hello.dwo`\n");
+  printf("    -etags    -----  Generate TAGS file with etags for project\n");
+  printf("    -f        -----  Force rebuild of dowc\n");
+}
+
 int main(int argc, char** argv) {
   NOB_GO_REBUILD_URSELF(argc, argv);
 
-  char *program = shift(argv, argc);
+  const char *program = shift(argv, argc);
+  Cmd cmd = {0};
 
-  nob_log(NOB_INFO, "Using %zu source files", source_files_count);
+  nob_log(NOB_INFO, "Project has %zu source files registered (nob files aren't counted)", source_files_count);
 
   bool should_run = false, force_rebuild = false;
   while(argc > 0) {
     const char *flag = shift(argv, argc);
-    if (strcmp(flag, "-run") == 0) {
+    if (cstr_eq(flag, "-run")) {
       should_run = true;
-    } else if (strcmp(flag, "-f") == 0) {
+    } else if (cstr_eq(flag, "-f")) {
       force_rebuild = true;
+    } else if (cstr_eq(flag, "-etags")) {
+      if (generate_etags(&cmd)) {
+        nob_log(NOB_INFO, "Generated TAGS file succesfully");
+      } else {
+        nob_log(NOB_ERROR, "Failed to generate TAGS file");
+      }
+      // I am likely to literally run any of these at random cause I sometimes am dumb
+    } else if (cstr_eq(flag, "-h") || cstr_eq(flag, "--help") || cstr_eq(flag, "/?")) {
+      usage(program);
+      return 0;
     } else {
       nob_log(NOB_ERROR, "Unknown flag: %s", flag);
-      printf("Usage: %s [-run] [-f]\n", program);
-      printf("    -run      -----  Run example `dwoc hello.dwo`\n");
-      printf("    -f        -----  Force rebuild of dowc\n");
+      usage(program);
       return 1;
     }
   }
 
-  Cmd cmd = {0};
 
   if (force_rebuild || needs_rebuild("build/dwoc.exe", source_files, source_files_count)) {
     nob_cc(&cmd);
@@ -59,14 +93,7 @@ int main(int argc, char** argv) {
     }
     if (!cmd_run_sync_and_reset(&cmd)) return 1;
 
-    nob_minimal_log_level = NOB_NO_LOGS;
-    cmd_append(&cmd, "etags", "-o", "TAGS", "--lang=c");
-    cmd_append(&cmd, "nob.h");
-    for (size_t i = 0; i < source_files_count; ++i) {
-      cmd_append(&cmd, source_files[i]);
-    }
-    cmd_run_sync_and_reset(&cmd);
-    nob_minimal_log_level = NOB_INFO;
+    generate_etags_silent(&cmd);
   }
 
   if (should_run) {

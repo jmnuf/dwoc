@@ -16,6 +16,8 @@
 
 const char *source_files[] = {
   "src/dwoc.c",
+  "src/utils.h",
+  "src/lexer.h",
 };
 size_t source_files_count = NOB_ARRAY_LEN(source_files);
 
@@ -51,7 +53,8 @@ int main(int argc, char** argv) {
     my_cc_debug(&cmd);
     my_cc_include(&cmd, ".");
     for (size_t i = 0; i < source_files_count; ++i) {
-      cmd_append(&cmd, source_files[i]);
+      Nob_String_View ssv = nob_sv_from_cstr(source_files[i]);
+      if (sv_end_with(ssv, ".c")) cmd_append(&cmd, source_files[i]);
     }
     if (!cmd_run_sync_and_reset(&cmd)) return 1;
 

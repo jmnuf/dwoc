@@ -2,145 +2,15 @@
 #include <stdio.h>
 #include <ctype.h>
 
-
+// External
 #define NOB_IMPLEMENTATION
 #include "nob.h"
 
-typedef struct {
-  Nob_String_View *items;
-  size_t count;
-  size_t capacity;
-} StringViews;
-
-#define da_pop(da) (--(da)->count)
-
-typedef enum {
-  TOK_EOF = -1,
-  TOK_UNKNOWN,
-  TOK_IDENT,
-  TOK_SYMBOL,
-  TOK_INT,
-} TokenKind;
-
-const char *token_kind_name(TokenKind kind) {
-  switch (kind) {
-  case TOK_EOF:
-    return "End of File";
-  case TOK_UNKNOWN:
-    return "Unknown";
-  case TOK_IDENT:
-    return "Identifier";
-  case TOK_SYMBOL:
-    return "Symbol";
-  case TOK_INT:
-    return "Int";
-  default:
-    return "<Unsupported-Token-Kind>";
-  }
-}
-
-typedef struct {
-  const char *source_path;
-  size_t row;
-  size_t col;
-} Loc;
-
-typedef struct {
-  char *source;
-  size_t source_len;
-  size_t at_point;
-  Loc loc;
-
-  Nob_String_View view;
-  TokenKind kind;
-} Lexer;
-
-Lexer lexer_from(const char* source_path, char *source, size_t length) {
-  Lexer l = {
-    .source = source,
-    .source_len = length,
-    .at_point = 0,
-    .loc = { .source_path = source_path, .row = 1, .col = 0 },
-  };
-  return l;
-}
-bool lexer_next_token(Lexer *l) {
-  l->view.data = &l->source[l->at_point];
-  l->view.count = 0;
-
-  if (*l->source == 0 || l->at_point >= l->source_len) {
-    l->kind = TOK_EOF;
-    return true;
-  }
-  while (isspace(l->source[l->at_point]) && l->at_point < l->source_len) {
-    char c = l->source[l->at_point];
-    l->at_point++;
-    if (c == '\n') {
-      l->loc.row++;
-      l->loc.col = 0;
-    } else {
-      l->loc.col++;
-    }
-  }
-  char *where_firstchar = l->source + l->at_point;
-  l->view.data = where_firstchar;
-  char firstchar = *where_firstchar;
-  if (firstchar == EOF || l->at_point >= l->source_len) {
-    l->kind = TOK_EOF;
-    return true;
-  }
-  
-  size_t len = 0;
-  if (firstchar == '/' && *(where_firstchar+1) == '/') {
-    while (l->at_point < l->source_len) {
-      char c = l->source[l->at_point];
-      l->at_point++;
-      if (c == '\n') {
-        l->loc.row++;
-        l->loc.col = 0;
-        break;
-      }
-    }
-    if (l->at_point == l->source_len) {
-      l->kind = TOK_EOF;
-      return true;
-    }
-    return lexer_next_token(l);
-  } else if (isalpha(firstchar) || firstchar == '_') {
-    l->kind = TOK_IDENT;
-    while ((isalnum(l->source[l->at_point]) || l->source[l->at_point] == '_') && l->at_point < l->source_len) {
-      l->at_point++;
-      len++;
-    }
-  } else if (isdigit(firstchar)) {
-    l->kind = TOK_INT;
-    while ((isdigit(l->source[l->at_point]) || l->source[l->at_point] == '_') && l->at_point < l->source_len) {
-      l->at_point++;
-      len++;
-    }
-  } else if (ispunct(firstchar)) {
-    l->kind = TOK_SYMBOL;
-    l->at_point++;
-    len++;
-  } else {
-    l->kind = TOK_UNKNOWN;
-    while (!isspace(l->source[l->at_point]) && l->at_point < l->source_len) {
-      l->at_point++;
-      len++;
-    }
-  }
-  l->view.data = where_firstchar;
-  while (l->at_point > l->source_len) {
-    len--;
-    l->at_point--;
-  }
-  l->view.count = len;
-  if (len == 0 && l->at_point >= l->source_len) {
-    l->kind = TOK_EOF;
-    return true;
-  }
-  return false;
-}
+// Internal
+#define DWOC_LEXER_IMPLEMENTATION
+#include "lexer.h"
+#define DWOC_UTILS_IMPLEMENTATION
+#include "utils.h"
 
 typedef enum {
   OT_JavaScript,
@@ -148,22 +18,11 @@ typedef enum {
 } OutputTarget;
 
 typedef struct {
-  TokenKind kind;
-  Nob_String_View sv;
-  int integer;
-} Token;
-
-typedef struct {
-  Token *items;
-  size_t count;
-  size_t capacity;
-} TokenList;
-
-typedef struct {
   Nob_String_View name;
   bool immutable;
   Loc loc;
 } Var;
+
 typedef struct {
   Var *items;
   size_t count;
@@ -176,131 +35,18 @@ typedef struct {
   Vars vars;
 } Context;
 
-void dump_token(Nob_String_Builder *sb, Token tok) {
-  switch (tok.kind) {
-  case TOK_EOF:
-    nob_sb_append_cstr(sb, "Token::EOF");
-    break;
-  case TOK_UNKNOWN:
-    nob_sb_appendf(sb, "Token::Unknown('"SV_Fmt"')", SV_Arg(tok.sv));
-    break;
-  case TOK_SYMBOL:
-    nob_sb_appendf(sb, "Token::Symbol("SV_Fmt")", SV_Arg(tok.sv));
-    break;
-  case TOK_IDENT:
-    nob_sb_appendf(sb, "Token::Ident("SV_Fmt")", SV_Arg(tok.sv));
-    break;
-  case TOK_INT:
-    nob_sb_appendf(sb, "Token::Int(%d)", tok.integer);
-    break;
-  default:
-    NOB_UNREACHABLE("dump_token: TokenKind match");
-    break;
-  }
-}
-
-#define next_token(l, tok) move_lexer_ahead_by(l, tok, 1)
-bool move_lexer_ahead_by(Lexer *l, Token *tok, int amount) {
-  for (int i = 0; i < amount; ++i) {
-    if (lexer_next_token(l)) {
-      tok->kind = TOK_EOF;
-      tok->sv.count = 0;
-      return false;
-    }
-    tok->kind = l->kind;
-    if (tok->kind == TOK_INT) {
-      size_t tmp_save = nob_temp_save();
-      const char* substr = nob_temp_sv_to_cstr(l->view);
-      tok->integer = atoi(substr);
-      nob_temp_rewind(tmp_save);
-    } else {
-      tok->sv = l->view;
-    }
-  }
-  return true;
-}
-#define peek_token(l, tok) peek_token_ahead_by(l, tok, 1)
-bool peek_token_ahead_by(Lexer l, Token *tok, int amount) {
-  return move_lexer_ahead_by(&l, tok, amount);
-}
-
-#define comp_error(loc, message) fprintf(stderr, "%s:%zu:%zu: [ERROR] %s\n", loc.source_path, loc.row, loc.col, message)
-#define comp_errorf(loc, fmt, ...) fprintf(stderr, "%s:%zu:%zu: [ERROR] "fmt"\n", loc.source_path, loc.row, loc.col, __VA_ARGS__)
-#define comp_warn(loc, message) fprintf(stderr, "%s:%zu:%zu: [WARN] %s\n", loc.source_path, loc.row, loc.col, message)
-#define comp_warnf(loc, fmt, ...) fprintf(stderr, "%s:%zu:%zu: [WARN] "fmt"\n", loc.source_path, loc.row, loc.col, __VA_ARGS__)
-#define comp_note(loc, message) printf("%s:%zu:%zu: %s\n", loc.source_path, loc.row, loc.col, message)
-#define comp_notef(loc, fmt, ...) printf("%s:%zu:%zu: "fmt"\n", loc.source_path, loc.row, loc.col, __VA_ARGS__)
-
-const char* EQSIGN = "=";
-const char* SEMICOLON = ";";
-const char* OPEN_BRACE = "{";
-const char* CLOSING_BRACE = "}";
-
-bool sv_eq_buf(Nob_String_View sv, const char *buf, size_t buf_len) {
-  if (sv.count != buf_len) return false;
-  return strncmp(sv.data, buf, buf_len) == 0;
-}
-#define sv_eq_str(sv, str) sv_eq_buf(sv, str, strlen(str))
-
-
-#define arr_includes(arr, item, ret) arr_with_len_includes(arr, NOB_ARRAY_LEN(arr), item, ret)
-#define da_includes(arr, item, ret) arr_with_len_includes((arr)->items, (arr)->count, item, ret)
-#define arr_with_len_includes(arr, len, item, ret)         \
-  do {                                                  \
-    *ret = false;                                       \
-    for (size_t i = 0; i < len; ++i) {                  \
-      if (arr[i] == item) { *ret = true; break; }       \
-    }                                                   \
-  } while (0)
-
-
-bool expect_next_token_kind(Lexer *l, Token *tok, TokenKind kind) {
-  if (!next_token(l, tok)) {
-    return false;
-  }
-  if (tok->kind != kind) return false;
-  return true;
-}
-
-#define expect_next_token_kind_from_arr(l, tok, kinds) expect_next_token_kind_from_sized_arr(l, tok, kinds, NOB_ARRAY_LEN(kinds))
-bool expect_next_token_kind_from_sized_arr(Lexer *l, Token *tok, TokenKind *kinds, size_t kinds_count) {
-  if (!next_token(l, tok)) return false;
-  for (size_t i = 0; i < kinds_count; ++i) {
-    TokenKind kind = kinds[i];
-    if (kind == tok->kind) return true;
-  }
-  return false;
-}
-
-bool expect_next_token_eq_sv(Lexer *l, Token *tok, TokenKind kind, Nob_String_View content) {
-  if (!expect_next_token_kind(l, tok, kind)) return false;
-  return nob_sv_eq(tok->sv, content);
-}
-bool expect_next_token_eq_buf(Lexer *l, Token *tok, TokenKind kind, const char *buf, size_t buf_len) {
-  if (!expect_next_token_kind(l, tok, kind)) return false;
-  return sv_eq_buf(tok->sv, buf, buf_len);
-}
-#define expect_next_token_eq_str(l, tok, kind, str) expect_next_token_eq_buf(l, tok, kind, str, strlen(str))
-
 bool var_exist(const Vars *vars, Nob_String_View sv) {
   nob_da_foreach(Var, v, vars) {
     if (nob_sv_eq(v->name, sv)) return true;
   }
   return false;
 }
+
 Var *find_var_by_name(const Vars *vars, Nob_String_View name) {
   nob_da_foreach(Var, v, vars) {
     if (nob_sv_eq(v->name, name)) return v;
   }
   return NULL;
-}
-
-#define kind_in_array(kind, arr) kind_in_sized_array(kind, arr, NOB_ARRAY_LEN(arr))
-bool kind_in_sized_array(TokenKind kind, TokenKind *arr, size_t arr_len) {
-  for (size_t i = 0; i < arr_len; ++i) {
-    if (kind == arr[i]) return true;
-  }
-  return false;
 }
 
 #define compile_expr_as_js(sb, ctx, local_vars) compile_expr_as_js_with_depth(sb, ctx, local_vars, 0)
@@ -777,5 +523,4 @@ int main(int argc, char **argv) {
 
   return 0;
 }
-
 

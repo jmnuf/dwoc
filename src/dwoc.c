@@ -6,34 +6,22 @@
 #define NOB_IMPLEMENTATION
 #include "nob.h"
 
-// Internal
+// Lexing and Parsing
+// If you don't understand why this is needed, I love your ignorant bliss to the chaos I have built and the atrosity that is header files that are used in multiple areas. I'll never get the time I fought against mf MSVC to end up here.
 #define DWOC_UTILS_IMPLEMENTATION
+#include "utils.h"
+#undef DWOC_UTILS_IMPLEMENTATION
+
 #define DWOC_LEXER_IMPLEMENTATION
+#include "lexer.h"
+#undef DWOC_LEXER_IMPLEMENTATION
+
 #define DWOC_AST_IMPLEMENTATION
 #include "ast.h"
+#undef DWOC_AST_IMPLEMENTATION
 
-typedef enum {
-  OT_JavaScript,
-  OT_IR,
-} OutputTarget;
-
-typedef struct {
-  Nob_String_View name;
-  bool immutable;
-  Loc loc;
-} Var;
-
-typedef struct {
-  Var *items;
-  size_t count;
-  size_t capacity;
-} Vars;
-
-typedef struct {
-  const char *source_path;
-  Lexer lex;
-  Vars vars;
-} Context;
+#define DWOC_JS_IMPLEMENTATION
+#include "javascript.h"
 
 bool var_exist(const Vars *vars, Nob_String_View sv) {
   nob_da_foreach(Var, v, vars) {
@@ -451,24 +439,18 @@ int main(int argc, char **argv) {
       nob_da_append(&out, '\n');
       memset(&node, 0, sizeof(node));
     }
-    /* while (next_token(&ctx.lex, &t)) { */
-    /*   dump_token(&out, t); */
-    /*   nob_da_append(&out, '\n'); */
-    /* } */
   } else if (output_target == OT_JavaScript) {
     if (!nob_sv_end_with(nob_sb_to_sv(output_path_sb), ".js")) {
       nob_sb_append_cstr(&output_path_sb, ".js");
     }
-    nob_sb_append_cstr(&out, "\"use strict\";\n\n");
-    while (next_token(&ctx.lex, &t)) {
-      if (!compile_tok_to_js(&out, &ctx, t)) {
-        nob_log(NOB_INFO, "Wrote onto buffer %zu bytes", out.count);
-        // Nob_String_View out_sv = nob_sb_to_sv(out);
-        // nob_log(NOB_INFO, SV_Fmt, SV_Arg(out_sv));
-        return 1;
-      }
+    javascript_compilation_prologue(&out);
+    if (!javascript_run_compilation(&out, &ctx)) {
+      nob_log(NOB_INFO, "Wrote onto buffer %zu bytes", out.count);
+      // Nob_String_View out_sv = nob_sb_to_sv(out);
+      // nob_log(NOB_INFO, SV_Fmt, SV_Arg(out_sv));
+      return 1;
     }
-    nob_sb_append_cstr(&out, "\nmain();\n");
+    javascript_compilation_epilogue(&out, &ctx);
   } else {
     nob_log(NOB_ERROR, "Unsupported target");
     return 1;

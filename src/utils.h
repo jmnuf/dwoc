@@ -5,11 +5,34 @@
 #include "nob.h"
 #endif
 
+typedef enum {
+  OT_JavaScript,
+  OT_IR,
+} OutputTarget;
+
 typedef struct {
   Nob_String_View *items;
   size_t count;
   size_t capacity;
 } StringViews;
+
+typedef struct {
+  const char *source_path;
+  size_t row;
+  size_t col;
+} Loc;
+
+typedef struct {
+  Nob_String_View name;
+  bool immutable;
+  Loc loc;
+} Var;
+
+typedef struct {
+  Var *items;
+  size_t count;
+  size_t capacity;
+} Vars;
 
 #define da_pop(da) (NOB_ASSERT((da)->count > 0 && "Attempting to pop from empty array"), --(da)->count)
 
@@ -28,6 +51,14 @@ bool sv_eq_buf(Nob_String_View sv, const char *buf, size_t buf_len);
 // Made my own todo cause abort kinda seems a bit odd in my machine sometimes
 #define TODO(message) (fprintf(stderr, "%s:%d: [TODO] %s\n", __FILE__, __LINE__, message), exit(1))
 #define TODOf(fmt, ...) (fprintf(stderr, "%s:%d: [TODO] "fmt"\n", __FILE__, __LINE__, __VA_ARGS__), exit(1))
+
+#define HERE(message) (fprintf(stderr, "%s:%d: [ERROR] %s\n", __FILE__, __LINE__, message), exit(1))
+#define HEREf(fmt, ...) (fprintf(stderr, "%s:%d: [ERROR] "fmt"\n", __FILE__, __LINE__, __VA_ARGS__), exit(1))
+
+#define NEVER(message) (fprintf(stderr, "%s:%d: [NEVER_IS_HERE] %s\n", __FILE__, __LINE__, message), exit(1))
+#define NEVERf(fmt, ...) (fprintf(stderr, "%s:%d: [NEVER_IS_HERE] "fmt"\n", __FILE__, __LINE__, __VA_ARGS__), exit(1))
+
+#define sb_add_indentation_level(sb, i, depth) if ((depth) > 0) for (int i = 0; i < (depth); ++i) nob_sb_append_cstr(sb, "  ")
 
 #define arr_includes(arr, item, ret) arr_with_len_includes(arr, NOB_ARRAY_LEN(arr), item, ret)
 #define da_includes(arr, item, ret) arr_with_len_includes((arr)->items, (arr)->count, item, ret)

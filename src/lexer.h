@@ -12,12 +12,6 @@ typedef enum {
 } TokenKind;
 
 typedef struct {
-  const char *source_path;
-  size_t row;
-  size_t col;
-} Loc;
-
-typedef struct {
   char *source;
   size_t source_len;
   size_t at_point;

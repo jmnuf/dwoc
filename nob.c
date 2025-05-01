@@ -18,6 +18,7 @@ const char *source_files[] = {
   "src/dwoc.c",
   "src/utils.h",
   "src/lexer.h",
+  "src/ast.h",
 };
 size_t source_files_count = NOB_ARRAY_LEN(source_files);
 
@@ -70,9 +71,9 @@ int main(int argc, char** argv) {
 
   if (should_run) {
 #if _WIN32
-    cmd_append(&cmd, "build\\dwoc.exe", "-o", "build\\hello", "hello.dwo");
+    cmd_append(&cmd, "build\\dwoc.exe", "-o", "build\\hello", "hello.dwo", "-t", "ir");
 #else
-    cmd_append(&cmd, "build/dwoc", "-o", "build/hello", "hello.dwo");
+    cmd_append(&cmd, "build/dwoc", "-o", "build/hello", "hello.dwo", "-t", "ir");
 #endif
     cmd_run_sync_and_reset(&cmd);
   }

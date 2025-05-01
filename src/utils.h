@@ -23,6 +23,11 @@ typedef struct {
 #define sv_eq_str(sv, str) sv_eq_buf(sv, str, strlen(str))
 bool sv_eq_buf(Nob_String_View sv, const char *buf, size_t buf_len);
 
+#define sb_append_sv(sb, sv) nob_sb_append_buf(sb, sv.data, sv.count)
+
+// Made my own todo cause abort kinda seems a bit odd in my machine sometimes
+#define TODO(message) (fprintf(stderr, "%s:%d: [TODO] %s\n", __FILE__, __LINE__, message), exit(1))
+#define TODOf(fmt, ...) (fprintf(stderr, "%s:%d: [TODO] "fmt"\n", __FILE__, __LINE__, __VA_ARGS__), exit(1))
 
 #define arr_includes(arr, item, ret) arr_with_len_includes(arr, NOB_ARRAY_LEN(arr), item, ret)
 #define da_includes(arr, item, ret) arr_with_len_includes((arr)->items, (arr)->count, item, ret)
@@ -34,6 +39,15 @@ bool sv_eq_buf(Nob_String_View sv, const char *buf, size_t buf_len);
     }                                                   \
   } while (0)
 
+// Resize the capacity of the array to be exactly its count
+#define da_compact(da)                                                               \
+  do {                                                                               \
+    if ((da)->count > 0 && (da)->capacity > 0 && (da)->count != (da)->capacity) {    \
+      (da)->capacity = (da)->count;                                                  \
+      (da)->items = NOB_REALLOC((da)->items, (da)->capacity * sizeof(*(da)->items)); \
+      NOB_ASSERT((da)->items != NULL && "Buy more RAM lol");                         \
+    }                                                                                \
+  } while (0)
 
 // Symbol constants
 const char* EQSIGN = "=";

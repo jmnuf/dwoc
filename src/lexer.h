@@ -3,21 +3,12 @@
 
 #include "utils.h"
 
-const char *KEYWORD_FN = "fn";
-const char *KEYWORD_LET = "let";
-
 typedef enum {
   TOK_EOF = -1,
   TOK_UNKNOWN,
-
-  // Atoms
   TOK_IDENT,
   TOK_SYMBOL,
   TOK_INT,
-
-  // Molecules
-  TOK_FN_DECL,
-  TOK_VAR_DECL,
 } TokenKind;
 
 typedef struct {
@@ -36,11 +27,13 @@ typedef struct {
   TokenKind kind;
 } Lexer;
 
-typedef struct {
+typedef struct Token Token;
+
+struct Token {
   TokenKind kind;
   Nob_String_View sv;
   int integer;
-} Token;
+};
 
 // Get a human readable name for the token kind
 const char *token_kind_name(TokenKind kind);
@@ -107,10 +100,6 @@ const char *token_kind_name(TokenKind kind) {
   case TOK_INT:
     return "Integer_Literal";
 
-  case TOK_FN_DECL:
-    return "Function_Declaration";
-  case TOK_VAR_DECL:
-    return "Variable_Declaration";
   default:
     return "<Unsupported-Token-Kind>";
   }
@@ -207,6 +196,7 @@ bool lexer_next_token(Lexer *l) {
     l->kind = TOK_EOF;
     return true;
   }
+  
   return false;
 }
 

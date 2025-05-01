@@ -7,10 +7,10 @@
 #include "nob.h"
 
 // Internal
-#define DWOC_LEXER_IMPLEMENTATION
-#include "lexer.h"
 #define DWOC_UTILS_IMPLEMENTATION
-#include "utils.h"
+#define DWOC_LEXER_IMPLEMENTATION
+#define DWOC_AST_IMPLEMENTATION
+#include "ast.h"
 
 typedef enum {
   OT_JavaScript,
@@ -445,10 +445,16 @@ int main(int argc, char **argv) {
     if (!nob_sv_end_with(nob_sb_to_sv(output_path_sb), ".ir")) {
       nob_sb_append_cstr(&output_path_sb, ".ir");
     }
-    while (next_token(&ctx.lex, &t)) {
-      dump_token(&out, t);
+    AST_Node node = {0};
+    while (ast_chomp(&ctx.lex, &node)) {
+      ast_dump_node(&out, node);
       nob_da_append(&out, '\n');
+      memset(&node, 0, sizeof(node));
     }
+    /* while (next_token(&ctx.lex, &t)) { */
+    /*   dump_token(&out, t); */
+    /*   nob_da_append(&out, '\n'); */
+    /* } */
   } else if (output_target == OT_JavaScript) {
     if (!nob_sv_end_with(nob_sb_to_sv(output_path_sb), ".js")) {
       nob_sb_append_cstr(&output_path_sb, ".js");
@@ -498,10 +504,11 @@ int main(int argc, char **argv) {
 
 
   output_path_sb.count = 0;
+  nob_minimal_log_level = NOB_WARNING;
   for (size_t i = 0; i < path_parts.count; ++i) {
     Nob_String_View it = path_parts.items[i];
     const char *path = nob_temp_sv_to_cstr(it);
-    nob_log(NOB_INFO, "Path parth: `%s`", path);
+    /* nob_log(NOB_INFO, "Path parth: `%s`", path); */
     if (i + 1 < path_parts.count && strlen(path) > 0 && strcmp(path, ".") != 0 && strcmp(path, "..") != 0 && !nob_mkdir_if_not_exists(path)) return 1;
     if (i > 0) {
 #ifdef _WIN32
@@ -513,6 +520,7 @@ int main(int argc, char **argv) {
       nob_sb_append_cstr(&output_path_sb, path);
     }
   }
+  nob_minimal_log_level = NOB_INFO;
 
   nob_sb_append_null(&output_path_sb);
   const char *output_path = output_path_sb.items;

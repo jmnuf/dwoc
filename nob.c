@@ -1,6 +1,6 @@
 
 #ifdef _MSC_VER
-#    define nob_cc_flags(cmd) nob_cmd_append(cmd, "/nologo", "/utf-8", "/W2", "/we4013", "/WX")
+#  define nob_cc_flags(cmd) nob_cmd_append(cmd, "/nologo", "/utf-8", "/W2", "/we4013", "/WX")
 #  define my_cc_debug(cmd) nob_cmd_append(cmd, "/DEBUG:FULL")
 #  define my_cc_output(cmd, output) nob_cmd_append(cmd, nob_temp_sprintf("/Fe:%s.exe", output))
 #  define my_cc_include(cmd, include) nob_cmd_append(cmd, nob_temp_sprintf("/I%s", include))

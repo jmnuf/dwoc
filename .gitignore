@@ -6,6 +6,7 @@ nob.exe*
 *.js
 *.ir
 
+*.obj
 
 # Emacs stuff
 TAGS

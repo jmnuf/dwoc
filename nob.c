@@ -21,15 +21,6 @@ size_t source_files_count = NOB_ARRAY_LEN(source_files);
 
 int main(int argc, char** argv) {
   NOB_GO_REBUILD_URSELF(argc, argv);
-#ifdef _MSC_VER // Is there really a need to keep the .obj files that msvc leaves around?
-  nob_minimal_log_level = NOB_WARNING;
-  if (file_exists("nob.obj")) {
-    if (!delete_file("nob.obj")) {
-      nob_log(NOB_WARNING, "Failed to delete");
-    }
-  }
-  nob_minimal_log_level = NOB_INFO;
-#endif
 
   char *program = shift(argv, argc);
 
@@ -63,16 +54,6 @@ int main(int argc, char** argv) {
       cmd_append(&cmd, source_files[i]);
     }
     if (!cmd_run_sync_and_reset(&cmd)) return 1;
-#ifdef _MSC_VER
-    nob_minimal_log_level = NOB_WARNING;
-    if (file_exists("dwoc.obj")) {
-      if (!delete_file("dwoc.obj")) {
-        nob_log(NOB_WARNING, "Failed to delete extra dwoc.obj file");
-      }
-    }
-    nob_minimal_log_level = NOB_INFO;
-#endif
-
 
     nob_minimal_log_level = NOB_NO_LOGS;
     cmd_append(&cmd, "etags", "-o", "TAGS", "--lang=c");

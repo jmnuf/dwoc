@@ -209,7 +209,7 @@ void dump_token(Nob_String_Builder *sb, Token tok) {
     nob_sb_appendf(sb, "Token::Ident("SV_Fmt")", SV_Arg(tok.sv));
     break;
   case TOK_INT:
-    nob_sb_appendf(sb, "Token::Int(%d)", tok.integer);
+    nob_sb_appendf(sb, "Token::IntLit(%d)", tok.integer);
     break;
   default:
     NOB_UNREACHABLE("dump_token: TokenKind match");
@@ -225,13 +225,12 @@ bool move_lexer_ahead_by(Lexer *l, Token *tok, int amount) {
       return false;
     }
     tok->kind = l->kind;
+    tok->sv = l->view;
     if (tok->kind == TOK_INT) {
       size_t tmp_save = nob_temp_save();
       const char* substr = nob_temp_sv_to_cstr(l->view);
       tok->integer = atoi(substr);
       nob_temp_rewind(tmp_save);
-    } else {
-      tok->sv = l->view;
     }
   }
   return true;

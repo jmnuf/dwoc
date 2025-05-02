@@ -6,9 +6,9 @@ fn main() {
   let c := 420;
   // a = 35;
   // b = 34;
-  // println(c);
+  println(c);
   // c = a;
-  // c = a + b;
-  // println(c);
+  c = a + b;
+  println(c);
 }
 

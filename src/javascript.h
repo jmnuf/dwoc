@@ -20,7 +20,11 @@ void javascript_compilation_epilogue(Nob_String_Builder *sb, Context *ctx);
 #ifdef DWOC_JS_IMPLEMENTATION
 
 void javascript_compilation_prologue(Nob_String_Builder *sb) {
-  nob_sb_append_cstr(sb, "\"use strict\";\n\n");
+  // TODO: Embed runtime stuff
+  // possibly also needs options passed in to know what runtime things need to be added.
+  nob_sb_append_cstr(sb,
+  "\"use strict\";\n"
+  "const println = console.log;\n\n");
 }
 
 bool javascript_compile_expr_at_depth(Nob_String_Builder *sb, AST_NodeList *expr, int depth) {
@@ -28,11 +32,8 @@ bool javascript_compile_expr_at_depth(Nob_String_Builder *sb, AST_NodeList *expr
   sb_add_indentation_level(sb, i, depth);
   nob_da_foreach(AST_Node, node, expr) {
     switch (node->kind) {
-    case AST_NK_IDENT:
-      sb_append_sv(sb, node->as.sv);
-      break;
-    case AST_NK_INT_LITERAL:
-      nob_sb_appendf(sb, "%d", node->as.integer);
+    case AST_NK_TOKEN:
+      sb_append_sv(sb, node->as.token.sv);
       break;
     default:
       comp_errorf(node->loc, "Unsupported %s in expression", ast_node_kind_name(node->kind));
@@ -79,17 +80,10 @@ bool javascript_compile_fn_declaration(Nob_String_Builder *sb, AST_Node node, in
   nob_sb_append_cstr(sb, "() {\n");
   nob_da_foreach(AST_Node, node, &decl.body) {
     switch (node->kind) {
-    // Atoms
-    case AST_NK_IDENT:
-    case AST_NK_SYMBOL:
-    case AST_NK_INT_LITERAL:
-      comp_warnf(node->loc, "Dangling atom %s with no operation or usage found", ast_node_kind_name(node->kind));
+    case AST_NK_TOKEN:
+      comp_warnf(node->loc, "Dangling atom %s with no operation or usage found", token_kind_name(node->as.token.kind));
       sb_add_indentation_level(sb, i, depth+1);
-      if (node->kind == AST_NK_INT_LITERAL) {
-        nob_sb_appendf(sb, "%d", node->as.integer);
-      } else {
-        sb_append_sv(sb, node->as.sv);
-      }
+      sb_append_sv(sb, node->as.token.sv);
       nob_sb_append_cstr(sb, ";");
       break;
 
@@ -98,7 +92,6 @@ bool javascript_compile_fn_declaration(Nob_String_Builder *sb, AST_Node node, in
     case AST_NK_BINOP:
       TODOf("Implement compilation of %s molecule", ast_node_kind_name(node->kind));
       break;
-    case AST_NK_FN_PARAMS:
     case AST_NK_FN_PARAMS_DECL:
       NEVERf("Molecule %s should not be found in function body", ast_node_kind_name(node->kind));
       break;
@@ -114,6 +107,23 @@ bool javascript_compile_fn_declaration(Nob_String_Builder *sb, AST_Node node, in
     case AST_NK_FN_DECL:
       comp_error(node->loc, "Closures are not supported, yet");
       printf("    Function "SV_Fmt" should be moved outside\n", SV_Arg(node->as.fn_decl.name));
+      break;
+    case AST_NK_ASSIGNMENT:
+      sb_add_indentation_level(sb, i, depth+1);
+      sb_append_sv(sb, node->as.var_assign.name);
+      nob_sb_append_cstr(sb, " = ");
+      if (!javascript_compile_expr_at_depth(sb, &node->as.var_assign.expr, 0)) return false;
+      nob_sb_append_cstr(sb, ";");
+      break;
+    case AST_NK_FN_CALL:
+      sb_add_indentation_level(sb, i, depth+1);
+      sb_append_sv(sb, node->as.fn_call.name);
+      nob_sb_append_cstr(sb, "(");
+      if (node->as.fn_call.params.count > 0) {
+        AST_NodeList *fn_params = &node->as.fn_call.params;
+        if (!javascript_compile_expr_at_depth(sb, fn_params, 0)) return false;
+      }
+      nob_sb_append_cstr(sb, ");");
       break;
     case AST_NK_EOF:
       NEVER("End of File should never be part of function body");
@@ -136,23 +146,19 @@ bool javascript_run_compilation(Nob_String_Builder *sb, Context *ctx) {
       nob_log(NOB_INFO, "Errored on ast node %s", ast_node_kind_name(node.kind));
       return false;
     }
-    // nob_log(NOB_INFO, "Found ast node %s", ast_node_kind_name(node.kind));
     switch (node.kind) {
     case AST_NK_EOF: return true;
 
     // Atoms
-    case AST_NK_IDENT:
-    case AST_NK_SYMBOL:
-    case AST_NK_INT_LITERAL:
-      comp_warnf(ctx->lex.loc, "Dangling atom %s with no operation or usage found", ast_node_kind_name(node.kind));
+    case AST_NK_TOKEN:
+      comp_warnf(ctx->lex.loc, "Dangling atom %s at top level", ast_node_kind_name(node.kind));
       break;
 
       // Molecules
     case AST_NK_UNOP:
     case AST_NK_BINOP:
-      comp_warnf(ctx->lex.loc, "Dangling molecules %s with no operation or usage found", ast_node_kind_name(node.kind));
+      comp_warnf(ctx->lex.loc, "Dangling molecules %s at top level", ast_node_kind_name(node.kind));
       break;
-    case AST_NK_FN_PARAMS:
     case AST_NK_FN_PARAMS_DECL:
       comp_errorf(ctx->lex.loc, "Impossibly dangling molecules %s found", ast_node_kind_name(node.kind));
       HEREf("Impossible dangling %s found. Gotta debug lexing/parsing", ast_node_kind_name(node.kind));
@@ -168,10 +174,11 @@ bool javascript_run_compilation(Nob_String_Builder *sb, Context *ctx) {
       break;
     case AST_NK_FN_DECL:
       if (!javascript_compile_fn_declaration(sb, node, 0)) {
-        // nob_log(NOB_INFO, "Function declaration failed");
         return false;
       }
-      // nob_log(NOB_INFO, "Function declaration succeeded");
+      if (sv_eq_str(node.as.fn_decl.name, "main")) {
+        ctx->main_is_defined = true;
+      }
       break;
     default:
       TODOf("Implement missing AST Node kind ('%s') compilation", ast_node_kind_name(node.kind));
@@ -187,7 +194,7 @@ bool javascript_run_compilation(Nob_String_Builder *sb, Context *ctx) {
 }
 
 void javascript_compilation_epilogue(Nob_String_Builder *sb, Context *ctx) {
-  if (ctx->main_is_defined) nob_sb_append_cstr(sb, "\n\nmain();\n");
+  if (ctx->main_is_defined) nob_sb_append_cstr(sb, "\nmain();\n");
 }
 
 #endif // DWOC_JS_IMPLEMENTATION

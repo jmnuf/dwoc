@@ -102,7 +102,6 @@ int main(int argc, char **argv) {
     .source_path = input_path,
     .lex = lexer_from(input_path, sb.items, sb.count),
   };
-  Token t;
 
   if (output_target == OT_IR) {
     if (!nob_sv_end_with(nob_sb_to_sv(output_path_sb), ".ir")) {

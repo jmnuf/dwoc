@@ -185,12 +185,6 @@ bool javascript_run_compilation(Nob_String_Builder *sb, Context *ctx) {
     }
     nob_sb_append_cstr(sb, "\n");
   }
-  nob_log(NOB_INFO, "Wrote %zu bytes onto buffer", sb->count);
-  if (node.kind != AST_NK_EOF) {
-    // nob_log(NOB_INFO, "Compilation finished with node: %s", ast_node_kind_name(node.kind));
-    return false;
-  }
-  return true;
 }
 
 void javascript_compilation_epilogue(Nob_String_Builder *sb, Context *ctx) {

@@ -168,7 +168,7 @@ void ast_dump_node_at_depth(Nob_String_Builder *sb, AST_Node node, int depth) {
       if (index < node.as.expr.count - 1) nob_sb_append_cstr(sb, ", ");
     }
     nob_sb_append_cstr(sb, "\n");
-    for (size_t i = 0; i < depth; ++i) nob_sb_append_cstr(sb, "  ");
+    sb_add_indentation_level(sb, i, depth);
     nob_sb_append_cstr(sb, ")");
     return;
 
@@ -178,7 +178,7 @@ void ast_dump_node_at_depth(Nob_String_Builder *sb, AST_Node node, int depth) {
     } else {
       nob_sb_append_cstr(sb, "Node::VarDecl<immutable>(\n");
     }
-    for (size_t i = 0; i < depth+1; ++i) nob_sb_append_cstr(sb, "  ");
+    sb_add_indentation_level(sb, i, depth+1);
     nob_sb_appendf(sb, "Token::Ident('"SV_Fmt"'),\n", SV_Arg(node.as.var_decl.name));
     nob_da_foreach(AST_Node, n, &node.as.var_decl.expr) {
       ast_dump_node_at_depth(sb, *n, depth+1);
@@ -186,7 +186,7 @@ void ast_dump_node_at_depth(Nob_String_Builder *sb, AST_Node node, int depth) {
       if (index < node.as.expr.count - 1) nob_sb_append_cstr(sb, ", ");
     }
     nob_sb_append_cstr(sb, "\n");
-    for (size_t i = 0; i < depth; ++i) nob_sb_append_cstr(sb, "  ");
+    sb_add_indentation_level(sb, i, depth);
     nob_sb_append_cstr(sb, ")");
     return;
 
@@ -205,7 +205,8 @@ void ast_dump_node_at_depth(Nob_String_Builder *sb, AST_Node node, int depth) {
       size_t index = n - node.as.fn_decl.body.items;
       if (index < node.as.expr.count - 1) nob_sb_append_cstr(sb, ";\n");
     }
-    for (size_t i = 0; i < depth; ++i) nob_sb_append_cstr(sb, "  ");
+    
+    sb_add_indentation_level(sb, i, depth);
     nob_sb_append_cstr(sb, "}");
     return;
 
@@ -224,8 +225,8 @@ void ast_dump_node_at_depth(Nob_String_Builder *sb, AST_Node node, int depth) {
     return;
   }
   nob_log(NOB_WARNING, "Fell through switch statement of node kinds %s(%d)", ast_node_kind_name(node.kind), node.kind);
-  HERE("ast_dump_node_at_depth");
-  nob_sb_append_cstr(sb, "<UNKNOWN_NODE_KIND>");
+  HERE("ast_dump_node_at_depth: Unknown node kind");
+  // nob_sb_append_cstr(sb, "<UNKNOWN_NODE_KIND>");
 }
 
 bool ast_create_expr(Lexer *l, AST_NodeList *expr) {
@@ -251,7 +252,7 @@ bool ast_create_expr(Lexer *l, AST_NodeList *expr) {
     } else {
       comp_errorf(l->loc, "Unsupported token %s(`"SV_Fmt"`) found in expression", token_kind_name(tok.kind), SV_Arg(tok.sv));
       TODO("Add missing allowed expression tokens");
-      return false;
+      // return false;
     }
     nob_da_append(expr, value);
 
@@ -345,7 +346,7 @@ bool ast_create_var_decl(Lexer *l, AST_Node *decl) {
   decl->as.var_decl.expr = expr;
 
   if (!expect_next_token_eq_str(l, &tok, TOK_SYMBOL, SEMICOLON)) {
-    if (tok.kind = TOK_EOF) {
+    if (tok.kind == TOK_EOF) {
       comp_errorf(l->loc, "Expected semicolon for end of statement but found %s", token_kind_name(tok.kind));
     } else {
       comp_errorf(l->loc, "Expected semicolon for end of statement but found %s "SV_Fmt, token_kind_name(tok.kind), SV_Arg(tok.sv));
@@ -371,7 +372,7 @@ bool ast_create_assignment(Lexer *l, AST_Node *node, Nob_String_View name) {
   }
   node->as.var_assign.expr = expr;
   if (!expect_next_token_eq_str(l, &tok, TOK_SYMBOL, SEMICOLON)) {
-    if (tok.kind = TOK_EOF) {
+    if (tok.kind == TOK_EOF) {
       comp_errorf(l->loc, "Expected semicolon for end of statement but found %s", token_kind_name(tok.kind));
     } else {
       comp_errorf(l->loc, "Expected semicolon for end of statement but found %s "SV_Fmt, token_kind_name(tok.kind), SV_Arg(tok.sv));
@@ -460,7 +461,7 @@ bool ast_create_fn_body(Lexer *l, AST_Node *fn_node) {
         }
       }
       if (!expect_next_token_eq_str(l, &tok, TOK_SYMBOL, SEMICOLON)) {
-        if (tok.kind = TOK_EOF) {
+        if (tok.kind == TOK_EOF) {
           comp_errorf(l->loc, "Expected semicolon for end of statement but found %s", token_kind_name(tok.kind));
         } else {
           comp_errorf(l->loc, "Expected semicolon for end of statement but found %s "SV_Fmt, token_kind_name(tok.kind), SV_Arg(tok.sv));

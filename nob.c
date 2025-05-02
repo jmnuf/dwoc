@@ -2,10 +2,12 @@
 #ifdef _MSC_VER
 #  define nob_cc_flags(cmd) nob_cmd_append(cmd, "/nologo", "/W4", "/wd4146", "/wd4244", "/wd4245", "/wd4456", "/wd4457", "/wd4819", "/we4013", "/we4706", "/D_CRT_SECURE_NO_WARNINGS")
 #  define my_cc_debug(cmd) nob_cmd_append(cmd, "/DEBUG:FULL")
+#  define my_cc_release(cmd) nob_cmd_append(cmd, "/O2")
 #  define my_cc_output(cmd, output) nob_cmd_append(cmd, nob_temp_sprintf("/Fe:%s.exe", output))
 #  define my_cc_include(cmd, include) nob_cmd_append(cmd, nob_temp_sprintf("/I%s", include))
 #else
 #  define my_cc_debug(cmd) nob_cmd_append(cmd, "-ggdb")
+#  define my_cc_release(cmd) nob_cmd_append(cmd, "-O2")
 #  define my_cc_output(cmd, output) nob_cmd_append(cmd, "-o", output)
 #  define my_cc_include(cmd, include) nob_cmd_append(cmd, nob_temp_sprintf("-I%s", include))
 #endif
@@ -46,6 +48,7 @@ void usage(const char *program) {
   printf("Usage: %s [FLAGS]\n", program);
   printf("    -run <(ir|js)>   -----  Run example `dwoc hello.dwo`\n");
   printf("    -etags           -----  Generate TAGS file with etags for project\n");
+  printf("    -release         -----  Build without debug information, forces rebuild\n");
   printf("    -f               -----  Force rebuild of dowc\n");
 }
 
@@ -57,11 +60,14 @@ int main(int argc, char** argv) {
 
   nob_log(NOB_INFO, "Project has %zu source files registered (nob files aren't counted)", source_files_count);
 
-  bool should_run = false, force_rebuild = false, create_etags_on_rebuild = false;
+  bool should_run = false, force_rebuild = false, create_etags_on_rebuild = false, release = false;
   char *target = "ir";
   while(argc > 0) {
     const char *flag = shift(argv, argc);
-    if (cstr_eq(flag, "-run")) {
+    if (cstr_eq(flag, "-release")) {
+      release = true;
+      force_rebuild = true;
+    } else if (cstr_eq(flag, "-run")) {
       should_run = true;
       if (argc == 0) {
         nob_log(NOB_ERROR, "Missing run target for run flag");
@@ -105,7 +111,11 @@ int main(int argc, char** argv) {
     nob_cc(&cmd);
     my_cc_output(&cmd, "./build/dwoc");
     nob_cc_flags(&cmd);
-    my_cc_debug(&cmd);
+    if (release) {
+      my_cc_release(&cmd);
+    } else {
+      my_cc_debug(&cmd);
+    }
     my_cc_include(&cmd, ".");
     for (size_t i = 0; i < source_files_count; ++i) {
       Nob_String_View ssv = nob_sv_from_cstr(source_files[i]);

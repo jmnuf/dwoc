@@ -23,21 +23,21 @@ jobs:
       if: matrix.os == 'windows-latest'
       uses: ilammy/msvc-dev-cmd@v1
 
-    - name: Bootstrap nob build system
-      run: |
-        if [ "${{ matrix.os }}" == "windows-latest" ]; then
-          cl.exe /Fe:nob.exe nob.c
-        else
-          gcc nob.c -o nob
-        fi
+    - name: Bootstrap nob build system (Windows)
+      if: matrix.os == 'windows-latest'
+      run: cl.exe /Fe:nob.exe nob.c
 
-    - name: Build dwoc
-      run: |
-        if [ "${{ matrix.os }}" == "windows-latest" ]; then
-          .\nob.exe
-        else
-          ./nob
-        fi
+    - name: Bootstrap nob build system (Ubuntu)
+      if: matrix.os != 'windows-latest'
+      run: gcc nob.c -o nob
+
+    - name: Build dwoc.exe (Windows)
+      if: matrix.os == 'windows-latest'
+      run: .\nob.exe
+
+    - name: Build dwoc (Ubuntu)
+      if: matrix.os != 'windows-latest'
+      run: ./nob
 
     - name: Upload dwoc executable
       uses: actions/upload-artifact@v4

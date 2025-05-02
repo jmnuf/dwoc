@@ -31,19 +31,25 @@ jobs:
 
     - name: Build dwoc.exe (Windows)
       if: matrix.os == 'windows-latest'
-      run: .\nob.exe
+      run: .\nob.exe -release
 
     - name: Build dwoc (Linux)
       if: matrix.os != 'windows-latest'
-      run: ./nob
+      run: ./nob -release
 
-    - name: Upload dwoc executable
+    - name: Upload dwoc executable (Windows)
+      if: matrix.os == 'windows-latest'
       uses: actions/upload-artifact@v4
       with:
         name: dwoc-${{ matrix.os }}
-        path: |
-          ./build/dwoc
-          ./build/dwoc.exe # This line will be ignored on non-windows platforms
+        path: .\build\dwoc.exe
+
+    - name: Upload dwoc executable (Linux)
+      if: matrix.os != 'windows-latest'
+      uses: actions/upload-artifact@v4
+      with:
+        name: dwoc-${{ matrix.os }}
+        path: ./build/dwoc
 
   release:
     name: Create Release

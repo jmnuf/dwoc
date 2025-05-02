@@ -100,6 +100,7 @@ int main(int argc, char** argv) {
   }
 
 
+  if (!mkdir_if_not_exists("build")) return 1;
   if (force_rebuild || needs_rebuild("build/dwoc.exe", source_files, source_files_count)) {
     nob_cc(&cmd);
     my_cc_output(&cmd, "./build/dwoc");

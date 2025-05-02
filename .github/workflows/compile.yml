@@ -1,0 +1,70 @@
+name: Build and Release dwoc
+
+on:
+  push:
+    tags:
+      - 'v*' # Trigger on tags starting with v
+
+jobs:
+  build:
+    name: Build for ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    if: github.ref == 'refs/heads/main' # Only run if the tag is on the main branch
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest] # If you want Mac make a PR
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup MSVC (Windows)
+      if: matrix.os == 'windows-latest'
+      uses: ilammy/msvc-dev-cmd@v1
+
+    - name: Bootstrap nob build system
+      run: |
+        mkdir build
+        if [ "${{ matrix.os }}" == "windows-latest" ]; then
+          cl.exe /Fe:nob.exe nob.c
+        else
+          gcc nob.c -o dwoc
+        fi
+
+    - name: Build dwoc
+      run: |
+        if [ "${{ matrix.os }}" == "windows-latest" ]; then
+          ./nob.exe
+        else
+          ./nob
+        fi
+
+    - name: Upload dwoc executable
+      uses: actions/upload-artifact@v4
+      with:
+        name: dwoc-${{ matrix.os }}
+        path: |
+          ./build/dwoc
+          ./build/dwoc.exe # This line will be ignored on non-windows platforms
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && always() # Ensure release runs if build was triggered on main
+
+    steps:
+    - name: Download all build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+
+    - name: Create GitHub Release
+      id: create_release
+      uses: softprops/action-gh-release@v2
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        files: |
+          artifacts/*/dwoc
+          artifacts/*/dwoc.exe # This will upload the windows executable when it exists

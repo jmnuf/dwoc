@@ -57,7 +57,7 @@ int main(int argc, char** argv) {
 
   nob_log(NOB_INFO, "Project has %zu source files registered (nob files aren't counted)", source_files_count);
 
-  bool should_run = false, force_rebuild = false;
+  bool should_run = false, force_rebuild = false, create_etags_on_rebuild = false;
   char *target = "ir";
   while(argc > 0) {
     const char *flag = shift(argv, argc);
@@ -85,10 +85,13 @@ int main(int argc, char** argv) {
       } else {
         nob_log(NOB_ERROR, "Failed to generate TAGS file");
       }
+      create_etags_on_rebuild = true;
       // I am likely to literally run any of these at random cause I sometimes am dumb
     } else if (cstr_eq(flag, "-h") || cstr_eq(flag, "--help") || cstr_eq(flag, "/?")) {
       usage(program);
       return 0;
+    } else if (cstr_eq(flag, "-netags")) {
+      create_etags_on_rebuild = false;
     } else {
       nob_log(NOB_ERROR, "Unknown flag: %s", flag);
       usage(program);
@@ -109,7 +112,7 @@ int main(int argc, char** argv) {
     }
     if (!cmd_run_sync_and_reset(&cmd)) return 1;
 
-    generate_etags_silent(&cmd);
+    if (create_etags_on_rebuild) generate_etags_silent(&cmd);
   }
 
   if (should_run) {

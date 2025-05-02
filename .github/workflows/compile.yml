@@ -4,12 +4,12 @@ on:
   push:
     tags:
       - 'v*' # Trigger on tags starting with v
+  workflow_dispatch: # Allows manual triggering
 
 jobs:
   build:
     name: Build for ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    if: github.ref == 'refs/heads/main' # Only run if the tag is on the main branch
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest] # If you want Mac make a PR

@@ -40,7 +40,7 @@ Var *find_var_by_name(const Vars *vars, Nob_String_View name) {
 void usage(const char* program) {
   printf("Usage: %s [OPTIONS] <input.dwo>\n", program);
   printf("  -o <output-name>    ----  Specify output file name\n");
-  printf("  -t <js|ir>    ----  Specify output target\n");
+  printf("  -t <js|ir>          ----  Specify output target\n");
 }
 
 int main(int argc, char **argv) {

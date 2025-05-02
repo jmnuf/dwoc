@@ -107,14 +107,13 @@ int main(int argc, char **argv) {
     if (!nob_sv_end_with(nob_sb_to_sv(output_path_sb), ".ir")) {
       nob_sb_append_cstr(&output_path_sb, ".ir");
     }
-    AST_Node node = {0}, main = {0};
+    AST_Node node = {0};
     bool errored = true;
     while (ast_chomp(&ctx.lex, &node)) {
       AST_Node_Kind nk = node.kind;
       ast_dump_node(&out, node);
       if (nk == AST_NK_FN_DECL) {
         if (sv_eq_str(node.as.fn_decl.name, "main")) {
-          main = node;
           ctx.main_is_defined = true;
         }
       }

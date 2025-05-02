@@ -238,7 +238,7 @@ bool ast_create_expr(Lexer *l, AST_NodeList *expr) {
     AST_Node value = {0};
     if (!expect_next_token_kind_from_sized_arr(l, &tok, allowed_expr_tokens, allowed_expr_count)) {
       if (tok.kind == TOK_EOF) {
-        comp_errorf(l->loc, "Unexpected end of file: Missing rvalue for variable initialization");
+        comp_error(l->loc, "Unexpected end of file: Missing rvalue for variable initialization");
       } else {
         comp_errorf(l->loc, "Invalid token %s(`"SV_Fmt"`) found in expression", token_kind_name(tok.kind), SV_Arg(tok.sv));
       }

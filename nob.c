@@ -53,7 +53,7 @@ bool generate_etags_silent(Cmd *cmd) {
 
 void usage(const char *program) {
   printf("Usage: %s [FLAGS]\n", program);
-  printf("    -run <(ir|js)>   -----  Run example `dwoc hello.dwo`\n");
+  printf("    -run <(ir|js)>   -----  Run example `dwoc hello.dwoc`\n");
   printf("    -etags           -----  Generate TAGS file with etags for project\n");
   printf("    -release         -----  Build without debug information, forces rebuild\n");
   printf("    -f               -----  Force rebuild of dowc\n");
@@ -136,9 +136,9 @@ int main(int argc, char** argv) {
 
   if (should_run) {
 #if _WIN32
-    cmd_append(&cmd, "build\\dwoc.exe", "-o", "build\\hello", "hello.dwo");
+    cmd_append(&cmd, "build\\dwoc.exe", "-o", "build\\hello", "hello.dwoc");
 #else
-    cmd_append(&cmd, "build/dwoc", "-o", "build/hello", "hello.dwo");
+    cmd_append(&cmd, "build/dwoc", "-o", "build/hello", "hello.dwoc");
     #endif
     cmd_append(&cmd, "-t", target);
     cmd_run_sync_and_reset(&cmd);

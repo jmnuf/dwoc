@@ -108,23 +108,19 @@ int main(int argc, char **argv) {
       nob_sb_append_cstr(&output_path_sb, ".ir");
     }
     AST_Node node = {0};
-    bool errored = true;
-    while (ast_chomp(&ctx.lex, &node)) {
+    while (true) {
+      if (!ast_chomp(&ctx.lex, &node)) return 1;
       AST_Node_Kind nk = node.kind;
-      ast_dump_node(&out, node);
-      if (nk == AST_NK_FN_DECL) {
-        if (sv_eq_str(node.as.fn_decl.name, "main")) {
-          ctx.main_is_defined = true;
-        }
+      if (nk != AST_NK_EOF) ast_dump_node(&out, node);
+      if (nk == AST_NK_FN_DECL && sv_eq_str(node.as.fn_decl.name, "main")) {
+        ctx.main_is_defined = true;
       }
-      memset(&node, 0, sizeof(node));
+      memzero(&node);
       nob_da_append(&out, '\n');
       if (nk == AST_NK_EOF) {
-        errored = false;
         break;
       }
     }
-    if (errored) return 1;
   } else if (output_target == OT_JavaScript) {
     if (!nob_sv_end_with(nob_sb_to_sv(output_path_sb), ".js")) {
       nob_sb_append_cstr(&output_path_sb, ".js");

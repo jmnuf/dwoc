@@ -20,11 +20,9 @@ void javascript_compilation_epilogue(Nob_String_Builder *sb, Context *ctx);
 #ifdef DWOC_JS_IMPLEMENTATION
 
 void javascript_compilation_prologue(Nob_String_Builder *sb) {
-  // TODO: Embed runtime stuff
+  // TODO: Embed some runtime stuff
   // possibly also needs options passed in to know what runtime things need to be added.
-  nob_sb_append_cstr(sb,
-  "\"use strict\";\n"
-  "const println = console.log;\n\n");
+  nob_sb_append_cstr(sb, "\"use strict\";\n\n");
 }
 
 bool javascript_compile_expr_at_depth(Nob_String_Builder *sb, AST_NodeList *expr, int depth) {
@@ -138,9 +136,95 @@ bool javascript_compile_fn_declaration(Nob_String_Builder *sb, AST_Node node, in
   return true;
 }
 
+void javascript_import_core_io(Nob_String_Builder *sb, Context *ctx) {
+  static char *variable_names[] = {"stdin", "stdout", "stderr", "stdwarn"};
+  static char *fn_names[] = {"print", "println", "putchar", "flush"};
+  Nob_String_View library = SVl("core:io", 7);
+  size_t tmp_sp = nob_temp_save();
+
+  // TODO: These variables should be defined before we reach compilation stage for the sake of type checking
+  carray_foreach(char*, it, variable_names) {
+    char *name = *it;
+    Var io_var = {
+      .name = SV(name),
+      .immutable = true,
+      .library = library,
+    };
+    nob_da_append(&ctx->vars, io_var);
+  }
+
+  carray_foreach(char*, it, fn_names) {
+    char *name = *it;
+    Fn io_fn = {
+      .name = SV(name),
+      .library = library,
+    };
+    nob_da_append(&ctx->fns, io_fn);
+  }
+
+  // Define base FDs (standard input/output/error)
+  nob_sb_append_cstr(sb,
+  "(function(){\n"
+  "const utf8Decoder = new TextDecoder();\n"
+  "const utf8Encoder = new TextEncoder();\n"
+  "const buffers = [];\n"
+  "const stdin = buffers.push(null)-1, stdout=buffers.push('')-1, stderr=buffers.push('')-1, stdwarn=buffers.push('')-1;\n"
+  "globalThis.stdin=stdin;globalThis.stdout=stdout;globalThis.stderr=stderr;globalThis.stdwarn=stdwarn;\n");
+
+  nob_sb_append_cstr(sb,
+  "const print = (...args) => {\n"
+  "  for (const arg of args) {\n"
+  "    if (arg == '\\n') { console.log(buffers[stdout]); buffers[stdout] = ''; continue; }\n"
+  "    if (typeof arg === 'string' && arg.includes('\\n')) {\n"
+  "      const idx = arg.lastIndexOf('\\n');\n"
+  "      const content = buffers[stdout] + arg.substring(0, idx);\n"
+  "      console.log(content);\n"
+  "      buffers[stdout] = arg.substring(idx+1);\n"
+  "      continue;\n"
+  "    }\n"
+  "    \n"
+  "    buffers[stdout] += `${arg}`;\n"
+  "  }\n"
+  "};globalThis.print = print;\n");
+  
+  nob_sb_append_cstr(sb,
+  "const println = (...args) => {\n"
+  "  for (const arg of args) {\n"
+  "    if (arg == '\\n') { console.log(buffers[stdout]); buffers[stdout] = ''; continue; }\n"
+  "    if (typeof arg === 'string' && arg.includes('\\n')) {\n"
+  "      const idx = arg.lastIndexOf('\\n');\n"
+  "      const content = buffers[stdout] + arg.substring(0, idx);\n"
+  "      console.log(content);\n"
+  "      buffers[stdout] = arg.substring(idx+1);\n"
+  "      continue;\n"
+  "    }\n"
+  "    \n"
+  "    buffers[stdout] += `${arg}`;\n"
+  "  }\n"
+  "  console.log(buffers[stdout]);\n"
+  "  buffers[stdout] = '';\n"
+  "};globalThis.println = println;\n");
+  
+  nob_sb_append_cstr(sb,
+  "const putchar = (ch) => {\n"
+  "  if (ch === 10) { console.log(buffers[stdout]); buffers[stdout] = ''; return; }\n"
+  "  buffers[stdout] += utf8Decoder.decode(new Uint8Array([ch]));\n"
+  "};globalThis.putchar = putchar;\n");
+
+  nob_sb_append_cstr(sb,
+  "const flush = () => {\n"
+  "  if (buffers[stdout]) console.log(buffers[stdout]);\n"
+  "  buffers[stdout] = '';\n"
+  "};globalThis.flush = flush;\n");
+
+  nob_sb_append_cstr(sb, "})();\n");
+
+  nob_temp_rewind(tmp_sp);
+}
+
 bool javascript_run_compilation(Nob_String_Builder *sb, Context *ctx) {
   AST_Node node = {0};
-  for (;;) {
+  while (true) {
     node.kind = AST_NK_EOF;
     if (!ast_chomp(&ctx->lex, &node)) {
       nob_log(NOB_INFO, "Errored on ast node %s", ast_node_kind_name(node.kind));
@@ -152,6 +236,13 @@ bool javascript_run_compilation(Nob_String_Builder *sb, Context *ctx) {
     // Atoms
     case AST_NK_TOKEN:
       comp_warnf(ctx->lex.loc, "Dangling atom %s at top level", ast_node_kind_name(node.kind));
+      break;
+    case AST_NK_IMPORT:
+      if (sv_eq_str(node.as.import.name, "core:io")) {
+        javascript_import_core_io(sb, ctx);
+        break;
+      }
+      TODO("Implement imports in javascript declaration");
       break;
 
       // Molecules
@@ -188,7 +279,7 @@ bool javascript_run_compilation(Nob_String_Builder *sb, Context *ctx) {
 }
 
 void javascript_compilation_epilogue(Nob_String_Builder *sb, Context *ctx) {
-  if (ctx->main_is_defined) nob_sb_append_cstr(sb, "\nmain();\n");
+  if (ctx->main_is_defined) nob_sb_append_cstr(sb, "\n{ const r = main(); flush(); if (typeof r === 'number') if (r != 0) { throw new Error(`Program exited with non-zero exit code: ${r}`); } }\n");
 }
 
 #endif // DWOC_JS_IMPLEMENTATION

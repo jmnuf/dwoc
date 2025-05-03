@@ -1,0 +1,24 @@
+// We import functions for printing to the stdout
+// Importing from provided library by compiler
+use core:io; // TODO: Be able to alias the import by doing `let io :: use core:io;` or something like that
+// TODO: local project imports
+// use "alphabet";
+
+// This is the entry point to our program
+fn main() {
+  let count := 0;
+  let h :: 72; let e :: 101; let l :: 108; let o :: 111;
+  let exclamation_mark :: 33;
+
+  putchar(h);                count = count + 1;
+  putchar(e);                count = count + 1;
+  putchar(l);                count = count + 1;
+  putchar(l);                count = count + 1;
+  putchar(o);                count = count + 1;
+  putchar(exclamation_mark); count = count + 1;
+  putchar(10); // new line
+
+  print(count);
+  putchar(10); // new line
+}
+

@@ -5,6 +5,10 @@
 #include "nob.h"
 #endif
 
+#define String Nob_String_View
+#define SV(cstr) nob_sv_from_cstr(cstr)
+#define SVl(cstr, len) ((Nob_String_View) { .data = cstr, .count = len })
+
 typedef enum {
   OT_JavaScript,
   OT_IR,
@@ -24,6 +28,7 @@ typedef struct {
 
 typedef struct {
   Nob_String_View name;
+  Nob_String_View library;
   bool immutable;
   Loc loc;
 } Var;
@@ -34,7 +39,32 @@ typedef struct {
   size_t capacity;
 } Vars;
 
-#define da_pop(da) (NOB_ASSERT((da)->count > 0 && "Attempting to pop from empty array"), --(da)->count)
+typedef struct {
+  Nob_String_View name;
+  Nob_String_View library;
+  Loc loc;
+} Fn;
+
+typedef struct {
+  Fn *items;
+  size_t count;
+  size_t capacity;
+} Fns;
+
+#define expect(cond, msg) (!(cond)) ? (HERE(msg), 1) : 1
+#define expectf(cond, fmt, ...) (!(cond)) ? (HEREf(fmt, __VA_ARGS__), 1) : 1
+#define carray_foreach(Type, it, arr) for (Type *it = arr; it < arr + NOB_ARRAY_LEN(arr); ++it)
+
+#define da_pop(da) (expect((da)->count > 0, "Attempting to pop from empty array"), *((da)->items+(--(da)->count)))
+#define safe_da_free(da)    \
+  do {                      \
+    if (da.items != NULL) { \
+      nob_da_free(da);      \
+      da.items = NULL;      \
+      da.capacity = 0;      \
+      da.count = 0;         \
+    }                       \
+  } while (0)
 
 #define comp_error(loc, message) fprintf(stderr, "%s:%zu:%zu: [ERROR] %s\n", loc.source_path, loc.row, loc.col, message)
 #define comp_errorf(loc, fmt, ...) fprintf(stderr, "%s:%zu:%zu: [ERROR] "fmt"\n", loc.source_path, loc.row, loc.col, __VA_ARGS__)
@@ -79,6 +109,8 @@ bool sv_eq_buf(Nob_String_View sv, const char *buf, size_t buf_len);
       NOB_ASSERT((da)->items != NULL && "Buy more RAM lol");                         \
     }                                                                                \
   } while (0)
+
+#define memzero(data) memset((data), 0, sizeof(*(data)))
 
 // Symbol constants
 const char* EQSIGN = "=";

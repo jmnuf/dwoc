@@ -9,15 +9,18 @@ typedef struct {
   bool main_is_defined;
   Lexer lex;
   Vars vars;
+  Fns fns;
 } Context;
 
 const char *KEYWORD_FN = "fn";
 const char *KEYWORD_LET = "let";
+const char *KEYWORD_IMPORT = "use";
 
 typedef enum {
   AST_NK_EOF,
   // Atoms
   AST_NK_TOKEN, // Encapsulates identifiers, symbols and literals
+  AST_NK_IMPORT, // Import name, alias, and whether it should be locally searched or in compiler
 
   // Molecules
   AST_NK_UNOP,
@@ -42,11 +45,18 @@ struct AST_NodeList {
   size_t capacity;
 };
 
+
 struct AST_VarDeclAttr {
   Nob_String_View name;
   AST_NodeList expr;
   bool mutable;
 };
+
+typedef struct {
+  Nob_String_View name;
+  Nob_String_View alias;
+  bool is_local;
+} AST_Import;
 
 typedef struct {
   Nob_String_View name;
@@ -71,6 +81,7 @@ typedef union {
   AST_VarAssign var_assign;
   AST_FnDeclAttr fn_decl;
   AST_FnCall fn_call;
+  AST_Import import;
   AST_NodeList expr;
   Token token;
 } AST_Node_As;
@@ -104,6 +115,8 @@ char *ast_node_kind_name(AST_Node_Kind kind) {
     // Atoms
   case AST_NK_TOKEN:
     return "Token";
+  case AST_NK_IMPORT:
+    return "Import";
 
     // Molecules
   case AST_NK_UNOP:
@@ -130,6 +143,44 @@ char *ast_node_kind_name(AST_Node_Kind kind) {
   }
 }
 
+void ast_node_list_free(AST_NodeList *list) {
+  if (list->items == NULL) return;
+  nob_da_foreach(AST_Node, node, list) {
+    ast_node_children_free(node);
+  }
+  safe_da_free((*list));
+}
+
+void ast_node_children_free(AST_Node *node) {
+  switch (node->kind) {
+  case AST_NK_EOF:
+  case AST_NK_TOKEN:
+    return;
+
+  case AST_NK_EXPR:
+    ast_node_list_free(&node->as.expr);
+    return;
+
+  case AST_NK_VAR_DECL:
+    ast_node_list_free(&node->as.var_decl.expr);
+    return;
+  case AST_NK_ASSIGNMENT:
+    ast_node_list_free(&node->as.var_assign.expr);
+    return;
+
+  case AST_NK_FN_CALL:
+    ast_node_list_free(&node->as.fn_call.params);
+    return;
+
+  case AST_NK_FN_DECL:
+    ast_node_list_free(&node->as.fn_decl.params);
+    ast_node_list_free(&node->as.fn_decl.body);
+    return;
+
+  default:
+    TODOf("ast_node_children_free: Free node %s", ast_node_kind_name(node->kind));
+  }
+}
 
 void ast_dump_node_list(Nob_String_Builder *sb, AST_NodeList *nodes) {
   nob_da_foreach(AST_Node, n, nodes) {
@@ -146,6 +197,13 @@ void ast_dump_node_at_depth(Nob_String_Builder *sb, AST_Node node, int depth) {
     // Atoms
   case AST_NK_TOKEN:
     dump_token(sb, node.as.token);
+    return;
+  case AST_NK_IMPORT:
+    if (node.as.import.alias.count == 0) {
+      nob_sb_append_cstr(sb, "Node::Import(");
+      sb_append_sv(sb, node.as.import.name);
+      nob_sb_append_cstr(sb, ")");
+    }
     return;
 
   // Molecules
@@ -224,9 +282,8 @@ void ast_dump_node_at_depth(Nob_String_Builder *sb, AST_Node node, int depth) {
     nob_sb_append_cstr(sb, "])");
     return;
   }
-  nob_log(NOB_WARNING, "Fell through switch statement of node kinds %s(%d)", ast_node_kind_name(node.kind), node.kind);
-  HERE("ast_dump_node_at_depth: Unknown node kind");
-  // nob_sb_append_cstr(sb, "<UNKNOWN_NODE_KIND>");
+  nob_log(NOB_ERROR, "Fell through switch statement of node kinds with kind: %s(%d)", ast_node_kind_name(node.kind), node.kind);
+  HERE("ast_dump_node_at_depth: Unsupported node kind");
 }
 
 bool ast_create_expr(Lexer *l, AST_NodeList *expr) {
@@ -267,7 +324,7 @@ bool ast_create_expr(Lexer *l, AST_NodeList *expr) {
                   token_kind_name(tok.kind), SV_Arg(tok.sv));
       return false;
     }
-    if (sv_eq_str(tok.sv, SEMICOLON)) {
+    if (sv_eq_str(tok.sv, SEMICOLON) || sv_eq_str(tok.sv, ",")) {
       break;
     }
     if (sv_eq_str(tok.sv, "+")) {
@@ -427,20 +484,20 @@ bool ast_create_fn_body(Lexer *l, AST_Node *fn_node) {
         comp_errorf(l->loc, "Unexpected token expected ';' or '()' but got `"SV_Fmt"`", SV_Arg(tok.sv));
         return false;
       }
-      if (!expect_next_token_kind_from_arr(l, &tok, ((TokenKind[]){TOK_SYMBOL, TOK_IDENT}))) {
+      if (!expect_next_token_kind_from_arr(l, &tok, ((TokenKind[]){TOK_SYMBOL, TOK_IDENT, TOK_INT}))) {
         if (tok.kind == TOK_EOF) {
           comp_error(l->loc, "Unexpected End of File unfinished function call");
         } else {
-          comp_errorf(l->loc, "Unexpected token expected closing parenthesis `)` or an identifier but got %s `"SV_Fmt"`", token_kind_name(tok.kind), SV_Arg(tok.sv));
+          comp_errorf(l->loc, "Unexpected token expected closing parenthesis `)` or an function argument but got %s `"SV_Fmt"`", token_kind_name(tok.kind), SV_Arg(tok.sv));
         }
         return false;
       }
       if (tok.kind == TOK_SYMBOL) {
-        if (sv_eq_str(tok.sv, ")")) {
+        if (!sv_eq_str(tok.sv, ")")) {
           comp_errorf(l->loc, "Unexpected token expected closing parenthesis `)` but got %s `"SV_Fmt"`", token_kind_name(tok.kind), SV_Arg(tok.sv));
           return false;
         }
-      } else if (tok.kind == TOK_IDENT) {
+      } else if (tok.kind == TOK_IDENT || tok.kind == TOK_INT) {
         AST_NodeList params = {0};
         AST_Node ident_node = {
           .loc = l->loc,
@@ -517,6 +574,53 @@ bool ast_chomp(Lexer *l, AST_Node *node) {
     if (!ast_create_fn_body(l, node)) {
       return false;
     }
+    return true;
+  }
+  if (sv_eq_str(tok.sv, KEYWORD_IMPORT)) {
+    AST_Import import = {0};
+    Loc init_loc = l->loc;
+    Loc last_colon = l->loc;
+    TokenKind prv_kind = TOK_SYMBOL;
+    Nob_String_Builder sb = {0};
+    nob_sb_to_sv(sb);
+    while (true) {
+      if (!next_token(l, &tok)) {
+        comp_error(l->loc, "Unexpected end of file: use statement must end with ;");
+        if (l->loc.row != init_loc.row) comp_note(init_loc, "Import statement started here");
+        return false;
+      }
+      if (tok.kind == TOK_SYMBOL) {
+        if (sv_eq_str(tok.sv, SEMICOLON)) {
+          break;
+        }
+        if (sv_eq_str(tok.sv, ":")) {
+          last_colon = l->loc;
+          if (prv_kind != TOK_IDENT) {
+            comp_error(l->loc, "Invalid way to declare an import. Imports are declared with the following syntax `use core:io;`");
+            return false;
+          }
+          prv_kind = TOK_SYMBOL;
+          nob_da_append(&sb, ':');
+          continue;
+        }
+      }
+      if (tok.kind == TOK_IDENT) {
+        prv_kind = TOK_IDENT;
+        sb_append_sv(&sb, tok.sv);
+        continue;
+      }
+      comp_errorf(l->loc, "Unexpected token %s `"SV_Fmt"` in import statement", token_kind_name(tok.kind), SV_Arg(tok.sv));
+      comp_note(init_loc, "Import statement started here");
+      return false;
+    }
+    Nob_String_View name = nob_sb_to_sv(sb);
+    if (nob_sv_end_with(name, ":")) {
+      comp_errorf(last_colon, "Import name cannot end with a ':' did you miss to type something?");
+      return false;
+    }
+    import.name = name;
+    node->kind = AST_NK_IMPORT;
+    node->as.import = import;
     return true;
   }
   nob_log(NOB_ERROR, "Don't know how to parse %s `"SV_Fmt"`", token_kind_name(tok.kind), SV_Arg(tok.sv));

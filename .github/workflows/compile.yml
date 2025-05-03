@@ -51,9 +51,24 @@ jobs:
         name: dwoc-${{ matrix.os }}
         path: ./build/dwoc
 
+  changelog:
+    name: Upload Changelog
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Upload CHANGELOG.md
+      uses: actions/upload-artifact@v4
+      with:
+        path: ./CHANGELOG.md
+
   release:
     name: Create Release
-    needs: build
+    needs:
+    - build
+    - changelog
     runs-on: ubuntu-latest
 
     steps:

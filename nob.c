@@ -1,11 +1,18 @@
 
-#ifdef _MSC_VER
-#  define nob_cc_flags(cmd) nob_cmd_append(cmd, "/nologo", "/W4", "/wd4146", "/wd4244", "/wd4245", "/wd4456", "/wd4457", "/wd4819", "/we4013", "/we4706", "/D_CRT_SECURE_NO_WARNINGS")
-#  define my_cc_debug(cmd) nob_cmd_append(cmd, "/DEBUG:FULL")
+#ifdef _MSC_VER // There are too many fucking flags to enable for this shit to feel sane
+// Only disabling warning 4244 (possibly data loss from implicit type conversion) cause it'll always complain inside of nob.h which makes just noise
+// Warning 4456 & 4457 are disabled cause shadowing variables is fine
+// Warning 4013 is elevated to an error, all functions must be explicitly defined
+// Warning 4706 is elevated to an error, assignments should not be used as a condition
+// /D_CRT_SECURE_NO_WARNINGS is enabled just so it doesn't complain about using crt stuff
+#  define nob_cc_flags(cmd) nob_cmd_append(cmd, "/nologo", "/W4", "/wd4244", "/wd4456", "/wd4457", "/wd4819", "/we4013", "/we4706", "/D_CRT_SECURE_NO_WARNINGS")
+#  define my_cc_debug(cmd) nob_cmd_append(cmd, "/Z7", "/DEBUG:FULL")
 #  define my_cc_release(cmd) nob_cmd_append(cmd, "/O2")
 #  define my_cc_output(cmd, output) nob_cmd_append(cmd, nob_temp_sprintf("/Fe:%s.exe", output))
 #  define my_cc_include(cmd, include) nob_cmd_append(cmd, nob_temp_sprintf("/I%s", include))
 #else
+// Default flags are just fine, they feel sane enough
+// #  define nob_cc_flags(cmd) nob_cmd_append(cmd, "-Wall", "-Wextra", "-fsanitize=undefined")
 #  define my_cc_debug(cmd) nob_cmd_append(cmd, "-ggdb")
 #  define my_cc_release(cmd) nob_cmd_append(cmd, "-O2")
 #  define my_cc_output(cmd, output) nob_cmd_append(cmd, "-o", output)
@@ -105,8 +112,9 @@ int main(int argc, char** argv) {
     }
   }
 
-
+  minimal_log_level = NOB_WARNING;
   if (!mkdir_if_not_exists("build")) return 1;
+  minimal_log_level = NOB_INFO;
   if (force_rebuild || needs_rebuild("build/dwoc.exe", source_files, source_files_count)) {
     nob_cc(&cmd);
     my_cc_output(&cmd, "./build/dwoc");

@@ -30,8 +30,9 @@
   (list
    `("use *\\(\\\".*\\\"\\);" . (1 font-lock-string-face))
    `(,(regexp-opt (dwoc-keywords) 'symbols) . font-lock-keyword-face)
+   `(,(regexp-opt (dwoc-types) 'symbols) . font-lock-type-face)
    `(,"[0-9]+\\(?:\\.[0-9]+\\)?\\(e[+-]?[0-9]+\\)?" . 'font-lock-constant-face)
-   `(,(regexp-opt (dwoc-types) 'symbols) . font-lock-type-face)))
+   ))
 
 (defun dwoc--previous-non-empty-line ()
   (save-excursion

@@ -184,9 +184,9 @@ void ast_node_children_free(AST_Node *node) {
 
 void ast_dump_node_list(Nob_String_Builder *sb, AST_NodeList *nodes) {
   nob_da_foreach(AST_Node, n, nodes) {
-    ast_dump_node(sb, *n);
     size_t index = n - nodes->items;
-    if (index < nodes->count - 1) nob_sb_append_cstr(sb, ", ");
+    if (index > 0) nob_sb_append_cstr(sb, ", ");
+    ast_dump_node(sb, *n);
   }
 }
 
@@ -220,11 +220,7 @@ void ast_dump_node_at_depth(Nob_String_Builder *sb, AST_Node node, int depth) {
   // Compounds
   case AST_NK_EXPR:
     nob_sb_append_cstr(sb, "Node::Expr(");
-    nob_da_foreach(AST_Node, n, &node.as.expr) {
-      ast_dump_node(sb, *n);
-      size_t index = n - node.as.expr.items;
-      if (index < node.as.expr.count - 1) nob_sb_append_cstr(sb, ", ");
-    }
+    ast_dump_node_list(sb, &node.as.expr);
     nob_sb_append_cstr(sb, "\n");
     sb_add_indentation_level(sb, i, depth);
     nob_sb_append_cstr(sb, ")");
@@ -238,11 +234,7 @@ void ast_dump_node_at_depth(Nob_String_Builder *sb, AST_Node node, int depth) {
     }
     sb_add_indentation_level(sb, i, depth+1);
     nob_sb_appendf(sb, "Token::Ident('"SV_Fmt"'),\n", SV_Arg(node.as.var_decl.name));
-    nob_da_foreach(AST_Node, n, &node.as.var_decl.expr) {
-      ast_dump_node_at_depth(sb, *n, depth+1);
-      size_t index = n - node.as.var_decl.expr.items;
-      if (index < node.as.expr.count - 1) nob_sb_append_cstr(sb, ", ");
-    }
+    ast_dump_node_list(sb, &node.as.var_decl.expr);
     nob_sb_append_cstr(sb, "\n");
     sb_add_indentation_level(sb, i, depth);
     nob_sb_append_cstr(sb, ")");
@@ -259,9 +251,9 @@ void ast_dump_node_at_depth(Nob_String_Builder *sb, AST_Node node, int depth) {
   case AST_NK_FN_DECL:
     nob_sb_appendf(sb, "Node::FnDecl(Token::Ident('"SV_Fmt"'), []) {\n", SV_Arg(node.as.fn_decl.name));
     nob_da_foreach(AST_Node, n, &node.as.fn_decl.body) {
-      ast_dump_node_at_depth(sb, *n, depth+1);
       size_t index = n - node.as.fn_decl.body.items;
-      if (index < node.as.expr.count - 1) nob_sb_append_cstr(sb, ";\n");
+      if (index > 0) nob_sb_append_cstr(sb, ";\n");
+      ast_dump_node_at_depth(sb, *n, depth+1);
     }
     
     sb_add_indentation_level(sb, i, depth);
@@ -273,11 +265,7 @@ void ast_dump_node_at_depth(Nob_String_Builder *sb, AST_Node node, int depth) {
     dump_token(sb, (Token) { .kind = TOK_IDENT, .sv = node.as.fn_call.name });
     nob_sb_append_cstr(sb, ", [");
     if(node.as.fn_call.params.count > 0) {
-      nob_da_foreach(AST_Node, n, &node.as.fn_call.params) {
-        ast_dump_node(sb, *n);
-        size_t index = n - node.as.fn_call.params.items;
-        if (index + 1 < node.as.fn_call.params.count - 1) nob_sb_append_cstr(sb, ", ");
-      }
+      ast_dump_node_list(sb, &node.as.fn_call.params);
     }
     nob_sb_append_cstr(sb, "])");
     return;
@@ -291,7 +279,6 @@ bool ast_create_expr(Lexer *l, AST_NodeList *expr) {
   static TokenKind allowed_expr_tokens[] = { TOK_IDENT, TOK_INT };
   static size_t allowed_expr_count = NOB_ARRAY_LEN(allowed_expr_tokens);
   
-  // TODO: Parse an actual expression
   for (;;) {
     AST_Node value = {0};
     if (!expect_next_token_kind_from_sized_arr(l, &tok, allowed_expr_tokens, allowed_expr_count)) {
@@ -320,14 +307,11 @@ bool ast_create_expr(Lexer *l, AST_NodeList *expr) {
     }
     if (tok.kind != TOK_SYMBOL) {
       comp_errorf(peeker.loc,
-                  "Unexpected token %s(`"SV_Fmt"`): Symbol `+` or `;` was expected",
+                  "Unexpected %s(`"SV_Fmt"`): Expected math operand or a expression finisher was expected",
                   token_kind_name(tok.kind), SV_Arg(tok.sv));
       return false;
     }
-    if (sv_eq_str(tok.sv, SEMICOLON) || sv_eq_str(tok.sv, ",")) {
-      break;
-    }
-    if (sv_eq_str(tok.sv, "+")) {
+    if (sv_eq_str(tok.sv, "+") || sv_eq_str(tok.sv, "-")) {
       lexer_next_token(l);
       AST_Node operand = {
         .loc = l->loc,
@@ -337,10 +321,7 @@ bool ast_create_expr(Lexer *l, AST_NodeList *expr) {
       nob_da_append(expr, operand);
       continue;
     }
-    comp_errorf(peeker.loc,
-                "Unexpected token %s(`"SV_Fmt"`): Symbol `+` or `;` was expected",
-                token_kind_name(tok.kind), SV_Arg(tok.sv));
-    return false;
+    break;
   }
 
   return true;
@@ -484,7 +465,8 @@ bool ast_create_fn_body(Lexer *l, AST_Node *fn_node) {
         comp_errorf(l->loc, "Unexpected token expected ';' or '()' but got `"SV_Fmt"`", SV_Arg(tok.sv));
         return false;
       }
-      if (!expect_next_token_kind_from_arr(l, &tok, ((TokenKind[]){TOK_SYMBOL, TOK_IDENT, TOK_INT}))) {
+      Lexer peeker = *l;
+      if (!expect_next_token_kind_from_arr(&peeker, &tok, ((TokenKind[]){TOK_SYMBOL, TOK_IDENT, TOK_INT}))) {
         if (tok.kind == TOK_EOF) {
           comp_error(l->loc, "Unexpected End of File unfinished function call");
         } else {
@@ -493,18 +475,66 @@ bool ast_create_fn_body(Lexer *l, AST_Node *fn_node) {
         return false;
       }
       if (tok.kind == TOK_SYMBOL) {
+        lexer_next_token(l);
         if (!sv_eq_str(tok.sv, ")")) {
           comp_errorf(l->loc, "Unexpected token expected closing parenthesis `)` but got %s `"SV_Fmt"`", token_kind_name(tok.kind), SV_Arg(tok.sv));
           return false;
         }
       } else if (tok.kind == TOK_IDENT || tok.kind == TOK_INT) {
         AST_NodeList params = {0};
-        AST_Node ident_node = {
+        AST_NodeList p_expr = {0};
+        AST_Node p_node = {
           .loc = l->loc,
           .kind = AST_NK_TOKEN,
         };
-        ident_node.as.token = tok;
-        nob_da_append(&params, ident_node);
+        p_node.as.token = tok;
+        if (!ast_create_expr(l, &p_expr)) {
+          comp_error(l->loc, "Failed to parse function call argument");
+          return false;
+        }
+        if (p_expr.count == 1) {
+          p_node = p_expr.items[0];
+        } else {
+          p_node.kind = AST_NK_EXPR;
+          p_node.loc = peeker.loc;
+          p_node.as.expr = p_expr;
+        }
+        nob_da_append(&params, p_node);
+
+        Token peeked = {0};
+        if (!next_token(&peeker, &peeked)) {
+          comp_error(peeker.loc, "Unexpected End of File unfinished function call");
+          comp_note(l->loc, "After first parameter expected closing parenthesis `)` or more arguments");
+          return false;
+        }
+        if (peeked.kind == TOK_SYMBOL && sv_eq_str(peeked.sv, ",")) {
+          lexer_next_token(l);
+          while (true) {
+            p_expr.count = 0;
+            lexer_next_token(&peeker);
+            if (!ast_create_expr(l, &p_expr)) {
+              comp_error(l->loc, "Failed to parse function call argument");
+              return false;
+            }
+            if (p_expr.count == 1) {
+              p_node = p_expr.items[0];
+            } else {
+              p_node.kind = AST_NK_EXPR;
+              p_node.loc = peeker.loc;
+              p_node.as.expr = p_expr;
+            }
+            nob_da_append(&params, p_node);
+            peeker = *l;
+            if (!next_token(&peeker, &peeked)) {
+              comp_error(l->loc, "Unexpected End of File unfinished function call");
+              return false;
+            }
+            if (!sv_eq_str(peeked.sv, ",")) {
+              break;
+            }
+            lexer_next_token(l);
+          }
+        }
         node.as.fn_call.params = params;
 
         if (!expect_next_token_eq_str(l, &tok, TOK_SYMBOL, ")")) {
@@ -513,7 +543,6 @@ bool ast_create_fn_body(Lexer *l, AST_Node *fn_node) {
           } else {
             comp_errorf(l->loc, "Unexpected token expected closing parenthesis `)` but got %s `"SV_Fmt"`", token_kind_name(tok.kind), SV_Arg(tok.sv));
           }
-          printf("    NOTE: Only one or zero parameters are allowed for now\n");
           return false;
         }
       }

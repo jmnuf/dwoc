@@ -10,15 +10,10 @@ fn main() {
   let h :: 72; let e :: 101; let l :: 108; let o :: 111;
   let exclamation_mark :: 33;
 
-  putchar(h);                count = count + 1;
-  putchar(e);                count = count + 1;
-  putchar(l);                count = count + 1;
-  putchar(l);                count = count + 1;
-  putchar(o);                count = count + 1;
+  putchar(h, e, l, l, o); count = count + 5;
   putchar(exclamation_mark); count = count + 1;
-  putchar(10); // new line
+  putchar(6+6-2); // ASCII Code 10 - New Line
 
-  print(count);
-  putchar(10); // new line
+  println(count);
 }
 

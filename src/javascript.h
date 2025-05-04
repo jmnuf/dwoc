@@ -119,7 +119,24 @@ bool javascript_compile_fn_declaration(Nob_String_Builder *sb, AST_Node node, in
       nob_sb_append_cstr(sb, "(");
       if (node->as.fn_call.params.count > 0) {
         AST_NodeList *fn_params = &node->as.fn_call.params;
-        if (!javascript_compile_expr_at_depth(sb, fn_params, 0)) return false;
+        if (fn_params->count > 0) {
+          nob_da_foreach(AST_Node, param, fn_params) {
+            size_t index = param - node->as.fn_call.params.items;
+            if (index > 0) nob_sb_append_cstr(sb, ", ");
+            switch (param->kind) {
+            case AST_NK_TOKEN:
+              sb_append_sv(sb, param->as.token.sv);
+              break;
+            case AST_NK_EXPR:
+              if (!javascript_compile_expr_at_depth(sb, &param->as.expr, 0)) return false;
+              break;
+            default:
+              comp_errorf(param->loc, "Unsupported %s in expression", ast_node_kind_name(param->kind));
+              comp_note(fn_params->items[0].loc, "Expression starts here");
+              return false;
+            }
+          }
+        }
       }
       nob_sb_append_cstr(sb, ");");
       break;
@@ -206,9 +223,17 @@ void javascript_import_core_io(Nob_String_Builder *sb, Context *ctx) {
   "};globalThis.println = println;\n");
   
   nob_sb_append_cstr(sb,
-  "const putchar = (ch) => {\n"
-  "  if (ch === 10) { console.log(buffers[stdout]); buffers[stdout] = ''; return; }\n"
-  "  buffers[stdout] += utf8Decoder.decode(new Uint8Array([ch]));\n"
+  "const putchar = (...chars) => {\n"
+  "  if (chars.length == 0) { return; };\n"
+  "  if (chars.length == 1 && chars[0] === 10) { console.log(buffers[stdout]); buffers[stdout] = ''; return; }\n"
+  "  if (chars.length == 1) { buffers[stdout] += utf8Decoder.decode(new Uint8Array(chars)); return; }\n"
+  "  const subbuf = [];\n"
+  "  for (const ch of chars) {\n"
+  "    if (ch == 10) { console.log(buffers[stdout] + (subbuf.length == 0 ? '' : utf8Decoder.decode(new Uint8Array(subbuf)))); buffers[stdout] = ''; subbuf.length = 0; continue;  }\n"
+  "    subbuf.push(ch);\n"
+  "  }\n"
+  "  if (subbuf.length == 0) return;\n"
+  "  buffers[stdout] += utf8Decoder.decode(new Uint8Array(subbuf));\n"
   "};globalThis.putchar = putchar;\n");
 
   nob_sb_append_cstr(sb,

@@ -1,0 +1,63 @@
+
+
+let new_line:: 10;
+
+let space :: 32;
+let exclamation_mark :: 33;
+let comma :: 44;
+let colon :: 58;
+
+let A :: 65;
+let B :: 66;
+let C :: 67;
+let D :: 68;
+let E :: 69;
+let F :: 70;
+let G :: 71;
+let H :: 72;
+let I :: 73;
+let J :: 74;
+let K :: 75;
+let L :: 76;
+let M :: 77;
+let N :: 78;
+let O :: 79;
+let P :: 80;
+let Q :: 81;
+let R :: 82;
+let S :: 83;
+let T :: 84;
+let U :: 85;
+let V :: 86;
+let W :: 87;
+let X :: 88;
+let Y :: 89;
+let Z :: 90;
+
+let a :: 97;
+let b :: 98;
+let c :: 99;
+let d :: 100;
+let e :: 101;
+let f :: 102;
+let g :: 103;
+let h :: 104;
+let i :: 105;
+let j :: 106;
+let k :: 107;
+let l :: 108;
+let m :: 109;
+let n :: 110;
+let o :: 111;
+let p :: 112;
+let q :: 113;
+let r :: 114;
+let s :: 115;
+let t :: 116;
+let u :: 117;
+let v :: 118;
+let w :: 119;
+let x :: 120;
+let y :: 121;
+let z :: 122;
+

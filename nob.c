@@ -136,9 +136,9 @@ int main(int argc, char** argv) {
 
   if (should_run) {
 #if _WIN32
-    cmd_append(&cmd, "build\\dwoc.exe", "-o", "build\\hello", "hello.dwoc");
+    cmd_append(&cmd, "build\\dwoc.exe", "-o", "build\\hello", "example\\hello.dwoc");
 #else
-    cmd_append(&cmd, "build/dwoc", "-o", "build/hello", "hello.dwoc");
+    cmd_append(&cmd, "build/dwoc", "-o", "build/hello", "example/hello.dwoc");
     #endif
     cmd_append(&cmd, "-t", target);
     cmd_run_sync_and_reset(&cmd);

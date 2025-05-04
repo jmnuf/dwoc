@@ -1,19 +1,19 @@
 // We import functions for printing to the stdout
 // Importing from provided library by compiler
 use core:io; // TODO: Be able to alias the import by doing `let io :: use core:io;` or something like that
-// TODO: local project imports
-// use "alphabet";
+use "ascii_chars";
 
 // This is the entry point to our program
 fn main() {
   let count := 0;
-  let h :: 72; let e :: 101; let l :: 108; let o :: 111;
-  let exclamation_mark :: 33;
 
-  putchar(h, e, l, l, o); count = count + 5;
-  putchar(exclamation_mark); count = count + 1;
+  putchar(H, e, l, l, o); count = count + 5;
+  putchar(comma, space);
+  putchar(W, o, r, l, d); count = count + 5;
+  putchar(exclamation_mark);
   putchar(6+6-2); // ASCII Code 10 - New Line
 
+  putchar(L, e, t, t, e, r, s, space, u, s, e, d, colon, space);
   println(count);
 }
 

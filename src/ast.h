@@ -228,15 +228,13 @@ void ast_dump_node_at_depth(Nob_String_Builder *sb, AST_Node node, int depth) {
 
   case AST_NK_VAR_DECL:
     if (node.as.var_decl.mutable) {
-      nob_sb_append_cstr(sb, "Node::VarDecl<mutable>(\n");
+      nob_sb_append_cstr(sb, "Node::VarDecl<mutable>(");
     } else {
-      nob_sb_append_cstr(sb, "Node::VarDecl<immutable>(\n");
+      nob_sb_append_cstr(sb, "Node::VarDecl<immutable>(");
     }
-    sb_add_indentation_level(sb, i, depth+1);
-    nob_sb_appendf(sb, "Token::Ident('"SV_Fmt"'),\n", SV_Arg(node.as.var_decl.name));
+    nob_sb_appendf(sb, "Token::Ident('"SV_Fmt"'), ", SV_Arg(node.as.var_decl.name));
     ast_dump_node_list(sb, &node.as.var_decl.expr);
-    nob_sb_append_cstr(sb, "\n");
-    sb_add_indentation_level(sb, i, depth);
+    nob_sb_append_cstr(sb, "");
     nob_sb_append_cstr(sb, ")");
     return;
 

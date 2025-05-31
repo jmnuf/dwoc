@@ -1,0 +1,24 @@
+// We import functions for printing to the stdout
+// Importing from provided library by compiler
+use core:io;
+// let io :: use core:io; // TODO: Be able to alias the import by doing `let io :: use core:io;` or something like that
+// Importing local file
+use "ascii_chars";
+
+// This is the entry point to our program
+fn main() {
+  let count := 0;
+  [1, 2, 3, 4, 5]
+    |> Array.map(square)
+    |> println;
+
+  count += putchars(H, e, l, l, o);
+  putchars(comma, space);
+  count += putchars(W, o, r, l, d);
+  putchar(exclamation_mark);
+  putchar(6+6-2); // ASCII Code 10 - New Line
+
+  putchars(L, e, t, t, e, r, s, space, u, s, e, d, colon, space);
+  println(count);
+}
+
